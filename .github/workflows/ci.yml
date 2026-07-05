@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Tidy and verify modules
+        run: go mod tidy && go mod verify
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -v -race ./...
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -t bondcalc:smoke .
+
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8080:8080 \
+            -e JWT_SECRET=test-secret \
+            bondcalc:smoke
+          sleep 5
+          curl -sf http://localhost:8080/health
+          docker stop smoke

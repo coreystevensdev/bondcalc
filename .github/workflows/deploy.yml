@@ -1,0 +1,68 @@
+name: Deploy to AWS ECS
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          ECR_REPO: ${{ secrets.ECR_API_REPO }}
+        run: |
+          SHORT="${HEAD_SHA:0:7}"
+          echo "image=${ECR_REPO}:sha-${SHORT}" >> "$GITHUB_OUTPUT"
+        id: tag
+
+      - name: Build and push Docker image
+        env:
+          IMAGE: ${{ steps.tag.outputs.image }}
+        run: |
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Update ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ${{ secrets.ECS_TASK_FAMILY }}
+          container-name: api
+          image: ${{ steps.tag.outputs.image }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Smoke test production
+        env:
+          PROD_URL: ${{ secrets.PRODUCTION_URL }}
+        run: curl -sf "${PROD_URL}/health"
