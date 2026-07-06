@@ -1,6 +1,5 @@
 // Package bond implements fixed-income calculations: yield to maturity,
 // current yield, Macaulay duration, and modified duration.
-// All functions are pure and accept no I/O -- they are independently testable.
 package bond
 
 import (
@@ -11,7 +10,6 @@ import (
 // ErrInvalidInput is returned when caller-supplied values violate domain constraints.
 var ErrInvalidInput = errors.New("invalid bond parameters")
 
-// Bond represents the static parameters of a fixed-coupon bond.
 type Bond struct {
 	// FaceValue is the par value paid at maturity (e.g. 1000.00).
 	FaceValue float64
@@ -25,7 +23,6 @@ type Bond struct {
 	Price float64
 }
 
-// Result holds all computed metrics for a bond.
 type Result struct {
 	CurrentYield   float64 `json:"current_yield"`
 	YieldToMaturity float64 `json:"yield_to_maturity"`
@@ -50,12 +47,10 @@ func (b Bond) validate() error {
 	return nil
 }
 
-// couponPerPeriod returns the cash payment made each period.
 func (b Bond) couponPerPeriod() float64 {
 	return b.FaceValue * b.AnnualCouponRate / float64(b.CouponsPerYear)
 }
 
-// CurrentYield returns annual coupon income divided by current price.
 func (b Bond) CurrentYield() (float64, error) {
 	if err := b.validate(); err != nil {
 		return 0, err
@@ -144,7 +139,6 @@ func (b Bond) ModifiedDuration() (float64, error) {
 	return mac / (1 + periodicYield), nil
 }
 
-// Calculate returns all metrics in a single call.
 func Calculate(b Bond) (Result, error) {
 	cy, err := b.CurrentYield()
 	if err != nil {

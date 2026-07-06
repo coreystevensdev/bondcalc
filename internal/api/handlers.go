@@ -16,8 +16,7 @@ type CalculateRequest struct {
 	Price            float64 `json:"price"              binding:"required,gt=0"`
 }
 
-// HandleCalculate computes bond metrics for the supplied parameters.
-func HandleCalculate(c *gin.Context) {
+func Calculate(c *gin.Context) {
 	var req CalculateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -41,7 +40,7 @@ func HandleCalculate(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// HandleHealth is a liveness probe with no external dependencies.
-func HandleHealth(c *gin.Context) {
+// Health is a liveness probe with no external dependencies.
+func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
