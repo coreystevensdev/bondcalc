@@ -16,21 +16,14 @@ A pure-computation Go service. No database, no external dependencies at runtime.
 
 ## Architecture
 
-```
-Client
-  |
-  | POST /api/v1/calculate  (Bearer JWT required)
-  v
-[ALB]
-  |
-  v
-[ECS Fargate -- Go binary, distroless container]
-  |
-  | pure computation, no I/O
-  v
-{current_yield, yield_to_maturity,
- macaulay_duration_years, modified_duration_years,
- coupon_payment}
+```mermaid
+flowchart TD
+    A[Client] --> B["ALB\nHTTP/HTTPS termination"]
+    B --> C["POST /api/v1/calculate\nJWT middleware (HS256)"]
+    C --> D["ECS Fargate\nGo binary, distroless container"]
+    D --> E["Newton-Raphson YTM\n~10 iterations to converge"]
+    D --> F["Duration calculation\nweighted avg discounted cash flows"]
+    E & F --> G["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
 ```
 
 The ALB terminates HTTP. TLS termination via ACM certificate is optional -- see `infra/terraform/ecs.tf`.
