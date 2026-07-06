@@ -91,7 +91,7 @@ Response:
 go test -v -race ./...
 ```
 
-15 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, and the relationship invariants (YTM < coupon on premium, Macaulay > Modified).
+18 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, and the relationship invariants (YTM < coupon on premium, Macaulay > Modified).
 
 ## Deploy
 
