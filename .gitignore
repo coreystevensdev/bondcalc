@@ -3,3 +3,11 @@
 bondcalc
 dist/
 *.out
+
+## BMad / AI-dev artifacts
+_bmad-output/
+_bmad/
+docs/superpowers/
+*_explained.md
+CLAUDE.md
+AGENTS.md
