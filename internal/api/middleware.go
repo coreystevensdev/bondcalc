@@ -13,6 +13,9 @@ import (
 // Returns 401 on missing, malformed, or expired tokens.
 func JWTAuth() gin.HandlerFunc {
 	secret := []byte(os.Getenv("JWT_SECRET"))
+	if len(secret) < 32 {
+		panic("JWT_SECRET must be at least 32 characters")
+	}
 
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
