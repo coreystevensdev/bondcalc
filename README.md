@@ -1,6 +1,7 @@
 # bondcalc
 
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
+![18 tests](https://img.shields.io/badge/tests-18-brightgreen)
 
 REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication and deployed to AWS ECS Fargate.
 
