@@ -26,7 +26,7 @@ flowchart TD
     E & F --> G["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
 ```
 
-The ALB terminates HTTP. TLS termination via ACM certificate is optional -- see `infra/terraform/ecs.tf`.
+The ALB terminates HTTP. TLS termination via ACM certificate is optional; see `infra/terraform/ecs.tf`.
 
 ## Tech Stack
 
@@ -103,7 +103,7 @@ Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `ECS_TASK_FAMILY`, `ECS
 
 - YTM solver assumes non-negative periodic yield; deeply distressed bonds (price near zero) may not converge within 200 iterations.
 - Semi-annual convention assumed for all duration math when `coupons_per_year = 2`; quarterly and monthly bonds use the same formula with the appropriate period length.
-- JWT is HS256 shared-secret -- acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
+- JWT is HS256 shared-secret: acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
 - Rate limiting is absent; add an ALB WAF rule or an in-process sliding window before exposing to public traffic.
 - No HTTPS listener wired in the default Terraform; attach an ACM certificate and uncomment the 443 listener in `ecs.tf` before production use.
 
