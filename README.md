@@ -4,7 +4,7 @@
 
 REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication and deployed to AWS ECS Fargate.
 
-**Live:** `http://<alb-dns>` (see infra/README.md to provision)
+Deploy via Terraform to ECS Fargate (see `infra/`). Run locally with `docker compose up`.
 
 ## Problem
 
