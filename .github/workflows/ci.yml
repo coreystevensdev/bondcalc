@@ -40,8 +40,16 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name smoke -p 8080:8080 \
-            -e JWT_SECRET=test-secret \
+            -e JWT_SECRET=test-secret-at-least-32-characters-long \
             bondcalc:smoke
-          sleep 5
-          curl -sf http://localhost:8080/health
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080/health; then
+              docker stop smoke
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "server never became healthy"
+          docker logs smoke
           docker stop smoke
+          exit 1
