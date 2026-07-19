@@ -4,6 +4,12 @@ bondcalc
 dist/
 *.out
 
+## Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+
 ## BMad / AI-dev artifacts
 _bmad-output/
 _bmad/

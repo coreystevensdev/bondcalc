@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in values before running terraform apply.
+# terraform.tfvars is gitignored.
+
+aws_region    = "us-east-1"
+jwt_secret    = "change-me-32-plus-character-jwt-secret-here"
+ecr_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/bondcalc:latest"

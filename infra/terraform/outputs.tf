@@ -1,27 +1,16 @@
-output "alb_dns_name" {
-  value       = aws_alb.main.dns_name
-  description = "ALB DNS name -- point your CNAME here."
+output "api_public_ip" {
+  description = "EC2 public IP for the API"
+  value       = aws_instance.api.public_ip
 }
 
-output "ecr_api_url" {
-  value = aws_ecr_repository.api.repository_url
+output "ecr_repository_url" {
+  description = "ECR repository URL for pushing images"
+  value       = aws_ecr_repository.api.repository_url
 }
 
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.main.name
-}
-
-output "ecs_api_service_name" {
-  value = aws_ecs_service.api.name
-}
-
-output "ecs_api_task_family" {
-  value = aws_ecs_task_definition.api.family
-}
-
-output "app_secret_arn" {
-  value     = aws_secretsmanager_secret.app.arn
-  sensitive = true
+output "instance_id" {
+  description = "EC2 instance ID for the deploy workflow's EC2_INSTANCE_ID secret"
+  value       = aws_instance.api.id
 }
 
 output "github_actions_role_arn" {

@@ -1,14 +1,29 @@
 # bondcalc Infrastructure
 
-AWS ECS Fargate deployment. Single stateless service behind an ALB. No database.
+AWS deployment using Terraform. Single EC2 t2.micro running the container directly, no ALB, no NAT Gateway, no database. Free-tier eligible for 12 months on a new AWS account.
 
 ## Prerequisites
 
 - AWS CLI configured (`aws sts get-caller-identity` works)
 - Terraform 1.9+
-- GitHub OIDC provider created in your AWS account (one-time per account)
+- Docker + ECR access
 
-## One-time: GitHub OIDC Provider
+## First-time setup
+
+### 1. Create the S3 backend bucket
+
+```bash
+aws s3api create-bucket \
+  --bucket coreystevensdev-tfstate \
+  --region us-east-1
+aws s3api put-bucket-versioning \
+  --bucket coreystevensdev-tfstate \
+  --versioning-configuration Status=Enabled
+```
+
+Skip this step if the bucket already exists from another project's deploy.
+
+### 2. Create the GitHub OIDC provider (one-time per AWS account)
 
 ```bash
 aws iam create-open-id-connect-provider \
@@ -17,85 +32,74 @@ aws iam create-open-id-connect-provider \
   --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 ```
 
-## Deploy
+Skip this step if it already exists from another project's deploy.
+
+### 3. Create terraform.tfvars
 
 ```bash
 cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+# fill in jwt_secret and ecr_image_uri
+```
 
+### 4. Apply
+
+```bash
 terraform init
-
-terraform plan \
-  -var="jwt_secret=<your-secret>"
-
-terraform apply \
-  -var="jwt_secret=<your-secret>"
+terraform plan
+terraform apply
 ```
 
 Note the outputs:
 
 ```
-alb_dns_name          = "bondcalc-prod-alb-xxxx.us-east-1.elb.amazonaws.com"
-ecr_api_url           = "123456789.dkr.ecr.us-east-1.amazonaws.com/bondcalc-prod-api"
-ecs_cluster_name      = "bondcalc-prod-cluster"
-ecs_api_service_name  = "bondcalc-prod-api"
-ecs_api_task_family   = "bondcalc-prod-api"
-github_actions_role_arn = "arn:aws:iam::123456789:role/bondcalc-prod-github-actions"
+api_public_ip           = "54.x.x.x"
+ecr_repository_url      = "123456789.dkr.ecr.us-east-1.amazonaws.com/bondcalc"
+instance_id             = "i-0abc123def456"
+github_actions_role_arn = "arn:aws:iam::123456789:role/bondcalc-github-actions"
 ```
 
-## GitHub Secrets
+### 5. Push the first image
+
+The instance boots with `var.ecr_image_uri` as its initial image, so push that tag before the first CI deploy:
+
+```bash
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin <account_id>.dkr.ecr.us-east-1.amazonaws.com
+
+docker build -t <ecr_repository_url>:latest .
+docker push <ecr_repository_url>:latest
+```
+
+### 6. Add GitHub secrets
 
 Set these in the repo settings (Settings > Secrets > Actions):
 
 | Secret | Where to get it |
 |---|---|
 | `AWS_ROLE_ARN` | `github_actions_role_arn` output |
-| `ECR_API_REPO` | `ecr_api_url` output |
-| `ECS_TASK_FAMILY` | `ecs_api_task_family` output |
-| `ECS_SERVICE` | `ecs_api_service_name` output |
-| `ECS_CLUSTER` | `ecs_cluster_name` output |
-| `PRODUCTION_URL` | `http://<alb_dns_name>` |
+| `ECR_API_REPO` | `ecr_repository_url` output |
+| `EC2_INSTANCE_ID` | `instance_id` output |
+| `PRODUCTION_URL` | `http://<api_public_ip>:8080` |
+| `JWT_SECRET` | same value as `terraform.tfvars` |
 
-## First Image Push
-
-After `terraform apply` and GitHub secrets are set, push a commit to `main`. CI runs tests, builds the Docker image, pushes to ECR, and deploys to ECS automatically.
-
-For the first deploy only you may need to push the image manually since ECS starts with `latest` as a placeholder:
-
-```bash
-aws ecr get-login-password --region us-east-1 | \
-  docker login --username AWS --password-stdin <account_id>.dkr.ecr.us-east-1.amazonaws.com
-
-docker build -t <ecr_api_url>:latest .
-docker push <ecr_api_url>:latest
-
-aws ecs update-service \
-  --cluster bondcalc-prod-cluster \
-  --service bondcalc-prod-api \
-  --force-new-deployment
-```
+After that, every push to `main` triggers the deploy workflow automatically: it builds and pushes a new image, then uses SSM to pull and restart the container on the instance.
 
 ## Rollback
 
 ```bash
-# Find the previous task definition revision
-aws ecs list-task-definitions --family-prefix bondcalc-prod-api --sort DESC
-
-# Update service to use it
-aws ecs update-service \
-  --cluster bondcalc-prod-cluster \
-  --service bondcalc-prod-api \
-  --task-definition bondcalc-prod-api:<previous-revision>
+aws ssm send-command \
+  --instance-ids <instance_id> \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["docker stop api", "docker rm api", "docker run -d --name api --restart=always -p 8080:8080 -e JWT_SECRET=<secret> <ecr_repository_url>:sha-<previous-sha>"]'
 ```
 
 ## Cost Estimate
 
 | Resource | Monthly |
 |---|---|
-| ECS Fargate 256 CPU / 512 MB (1 task) | ~$7 |
-| ALB | ~$18 |
-| NAT Gateway | ~$5 |
-| ECR storage | ~$1 |
-| CloudWatch logs | ~$1 |
-| **Total** | **~$32/mo** |
+| EC2 t2.micro (free tier, 750 hrs/mo for 12 months) | $0 |
+| ECR storage (free tier, 500 MB for 12 months) | $0 |
+| **Total** | **~$0/mo for the first 12 months** |
 
-Shut down the NAT Gateway and task when not demoing to minimize cost.
+After the free-tier window, EC2 t2.micro runs about $8/mo. `terraform destroy` tears everything down between demos.

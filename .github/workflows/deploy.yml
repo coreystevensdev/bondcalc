@@ -1,4 +1,4 @@
-name: Deploy to AWS ECS
+name: Deploy to AWS EC2
 
 on:
   workflow_run:
@@ -46,23 +46,35 @@ jobs:
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
-      - name: Update ECS task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition-family: ${{ secrets.ECS_TASK_FAMILY }}
-          container-name: api
-          image: ${{ steps.tag.outputs.image }}
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Update EC2 with new image
+        env:
+          IMAGE: ${{ steps.tag.outputs.image }}
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              'aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $IMAGE',
+              'docker pull $IMAGE',
+              'docker stop api || true',
+              'docker rm api || true',
+              'docker run -d --name api --restart=always -p 8080:8080 \
+                -e \"JWT_SECRET=$JWT_SECRET\" \
+                -e \"GIN_MODE=release\" \
+                $IMAGE'
+            ]"
 
       - name: Smoke test production
         env:
           PROD_URL: ${{ secrets.PRODUCTION_URL }}
-        run: curl -sf "${PROD_URL}/health"
+        run: |
+          for i in $(seq 1 10); do
+            if curl -sf "${PROD_URL}/health"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "server never became healthy after deploy"
+          exit 1

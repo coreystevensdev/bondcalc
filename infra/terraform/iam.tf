@@ -1,54 +1,3 @@
-data "aws_iam_policy_document" "ecs_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "ecs_execution" {
-  name               = "${local.name_prefix}-ecs-execution"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_execution_managed" {
-  role       = aws_iam_role.ecs_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-resource "aws_iam_role_policy" "ecs_execution_secrets" {
-  name = "secrets-read"
-  role = aws_iam_role.ecs_execution.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = aws_secretsmanager_secret.app.arn
-    }]
-  })
-}
-
-resource "aws_iam_role" "ecs_task" {
-  name               = "${local.name_prefix}-ecs-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-}
-
-resource "aws_iam_role_policy" "ecs_task_logs" {
-  name = "cloudwatch-logs"
-  role = aws_iam_role.ecs_task.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
-      Resource = "${aws_cloudwatch_log_group.api.arn}:*"
-    }]
-  })
-}
-
 # GitHub OIDC trust for keyless deployments.
 data "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
@@ -75,12 +24,12 @@ data "aws_iam_policy_document" "github_assume" {
 }
 
 resource "aws_iam_role" "github_actions" {
-  name               = "${local.name_prefix}-github-actions"
+  name               = "bondcalc-github-actions"
   assume_role_policy = data.aws_iam_policy_document.github_assume.json
 }
 
 resource "aws_iam_role_policy" "github_actions_deploy" {
-  name = "ecr-ecs-deploy"
+  name = "ecr-ec2-deploy"
   role = aws_iam_role.github_actions.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -102,17 +51,15 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       {
         Effect = "Allow"
         Action = [
-          "ecs:DescribeTaskDefinition",
-          "ecs:RegisterTaskDefinition",
-          "ecs:UpdateService",
-          "ecs:DescribeServices",
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation",
         ]
         Resource = "*"
       },
       {
         Effect   = "Allow"
-        Action   = ["iam:PassRole"]
-        Resource = [aws_iam_role.ecs_execution.arn, aws_iam_role.ecs_task.arn]
+        Action   = ["ec2:DescribeInstances"]
+        Resource = "*"
       },
     ]
   })
