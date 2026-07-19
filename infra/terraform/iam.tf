@@ -35,9 +35,14 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
     Version = "2012-10-17"
     Statement = [
       {
+        # GetAuthorizationToken has no resource-level permissions in AWS's model.
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
         Effect = "Allow"
         Action = [
-          "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
           "ecr:GetDownloadUrlForLayer",
           "ecr:BatchGetImage",
@@ -46,19 +51,21 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "ecr:CompleteLayerUpload",
           "ecr:PutImage",
         ]
-        Resource = "*"
+        Resource = aws_ecr_repository.api.arn
       },
       {
         Effect = "Allow"
-        Action = [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation",
+        Action = ["ssm:SendCommand"]
+        Resource = [
+          "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.api.id}",
+          "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
         ]
-        Resource = "*"
       },
       {
+        # GetCommandInvocation has no resource-level permissions either; the
+        # SendCommand grant above is what actually scopes this to one instance.
         Effect   = "Allow"
-        Action   = ["ec2:DescribeInstances"]
+        Action   = ["ssm:GetCommandInvocation"]
         Resource = "*"
       },
     ]

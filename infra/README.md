@@ -81,9 +81,10 @@ Set these in the repo settings (Settings > Secrets > Actions):
 | `ECR_API_REPO` | `ecr_repository_url` output |
 | `EC2_INSTANCE_ID` | `instance_id` output |
 | `PRODUCTION_URL` | `http://<api_public_ip>:8080` |
-| `JWT_SECRET` | same value as `terraform.tfvars` |
 
-After that, every push to `main` triggers the deploy workflow automatically: it builds and pushes a new image, then uses SSM to pull and restart the container on the instance.
+The JWT secret isn't a GitHub secret. It lives in SSM Parameter Store (`/bondcalc/jwt-secret`, set from `terraform.tfvars` at apply time) and `/usr/local/bin/deploy.sh` on the instance reads it directly, so it never appears in a workflow log or an SSM command string.
+
+After that, every push to `main` triggers the deploy workflow automatically: it builds and pushes a new image, then uses SSM to invoke `deploy.sh` with the new image tag.
 
 ## Rollback
 
@@ -91,7 +92,7 @@ After that, every push to `main` triggers the deploy workflow automatically: it 
 aws ssm send-command \
   --instance-ids <instance_id> \
   --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["docker stop api", "docker rm api", "docker run -d --name api --restart=always -p 8080:8080 -e JWT_SECRET=<secret> <ecr_repository_url>:sha-<previous-sha>"]'
+  --parameters 'commands=["/usr/local/bin/deploy.sh <ecr_repository_url>:sha-<previous-sha>"]'
 ```
 
 ## Cost Estimate

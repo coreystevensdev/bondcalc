@@ -50,21 +50,13 @@ jobs:
         env:
           IMAGE: ${{ steps.tag.outputs.image }}
           INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
+          # deploy.sh (installed by user_data) pulls JWT_SECRET from SSM Parameter
+          # Store itself, so it never appears in this command string or in CloudTrail.
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[
-              'aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $IMAGE',
-              'docker pull $IMAGE',
-              'docker stop api || true',
-              'docker rm api || true',
-              'docker run -d --name api --restart=always -p 8080:8080 \
-                -e \"JWT_SECRET=$JWT_SECRET\" \
-                -e \"GIN_MODE=release\" \
-                $IMAGE'
-            ]"
+            --parameters "commands=['/usr/local/bin/deploy.sh $IMAGE']"
 
       - name: Smoke test production
         env:

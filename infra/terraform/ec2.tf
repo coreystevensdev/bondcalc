@@ -1,18 +1,11 @@
 resource "aws_security_group" "ec2" {
   name        = "bondcalc-ec2-sg"
-  description = "Allow API and SSH"
+  description = "Allow API traffic; SSH is not opened, use SSM Session Manager"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
     from_port   = 8080
     to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -51,6 +44,17 @@ resource "aws_ecr_lifecycle_policy" "api" {
   })
 }
 
+# Standard-tier SecureString: free, encrypted with the account's default aws/ssm key.
+resource "aws_ssm_parameter" "jwt_secret" {
+  name  = "/bondcalc/jwt-secret"
+  type  = "SecureString"
+  value = var.jwt_secret
+
+  lifecycle {
+    ignore_changes = [value] # rotate out-of-band, don't let a stale tfvars stomp it
+  }
+}
+
 resource "aws_iam_role" "ec2" {
   name = "bondcalc-ec2-role"
 
@@ -74,6 +78,26 @@ resource "aws_iam_role_policy_attachment" "ssm_managed" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_iam_role_policy" "read_jwt_secret" {
+  name = "read-jwt-secret"
+  role = aws_iam_role.ec2.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = aws_ssm_parameter.jwt_secret.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "bondcalc-ec2-profile"
   role = aws_iam_role.ec2.name
@@ -86,22 +110,43 @@ resource "aws_instance" "api" {
   vpc_security_group_ids = [aws_security_group.ec2.id]
   subnet_id              = data.aws_subnets.default.ids[0]
 
+  metadata_options {
+    http_tokens   = "required" # IMDSv2 only
+    http_endpoint = "enabled"
+  }
+
+  # deploy.sh pulls the JWT secret from SSM at run time so it never appears
+  # in user_data, an SSM command string, or CloudTrail.
   user_data = base64encode(<<-EOF
     #!/bin/bash
     yum install -y docker
     systemctl enable docker
     systemctl start docker
 
+    cat <<'SCRIPT' > /usr/local/bin/deploy.sh
+    #!/bin/bash
+    set -euo pipefail
+    IMAGE="$1"
+    JWT_SECRET=$(aws ssm get-parameter --name /bondcalc/jwt-secret --with-decryption \
+      --region ${var.aws_region} --query Parameter.Value --output text)
+
     aws ecr get-login-password --region ${var.aws_region} | \
       docker login --username AWS --password-stdin ${aws_ecr_repository.api.repository_url}
 
+    docker pull "$IMAGE"
+    docker stop api || true
+    docker rm api || true
     docker run -d \
       --name api \
       --restart=always \
       -p 8080:8080 \
-      -e "JWT_SECRET=${var.jwt_secret}" \
+      -e "JWT_SECRET=$JWT_SECRET" \
       -e "GIN_MODE=release" \
-      ${var.ecr_image_uri}
+      "$IMAGE"
+    SCRIPT
+    chmod +x /usr/local/bin/deploy.sh
+
+    /usr/local/bin/deploy.sh "${var.ecr_image_uri}"
     EOF
   )
 

@@ -97,7 +97,7 @@ go test -v -race ./...
 
 See [infra/README.md](infra/README.md) for the full Terraform + EC2 deploy runbook.
 
-Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRODUCTION_URL`, `JWT_SECRET`.
+Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRODUCTION_URL`. The JWT signing secret lives in SSM Parameter Store, not in a GitHub secret; the instance reads it directly at container start.
 
 ## Known Limitations
 
