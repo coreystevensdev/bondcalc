@@ -167,6 +167,60 @@ func TestValidation_NegativeCouponRate(t *testing.T) {
 	}
 }
 
+func TestYieldToMaturity_WellBehavedBondConvergesWellUnderIterationCap(t *testing.T) {
+	// 50000-period bond: pushes the solver harder than typical inputs without
+	// being pathological, so it must still land well inside the 200-iteration cap.
+	b := bond.Bond{
+		FaceValue:        1000,
+		AnnualCouponRate: 0.05,
+		CouponsPerYear:   2,
+		PeriodsRemaining: 50000,
+		Price:            1,
+	}
+	ytm, err := b.YieldToMaturity()
+	if err != nil {
+		t.Fatalf("expected convergence, got error: %v", err)
+	}
+	if ytm <= 0 {
+		t.Errorf("expected a positive yield for a steep discount bond, got %f", ytm)
+	}
+}
+
+func TestYieldToMaturity_PathologicalInputDoesNotConverge(t *testing.T) {
+	cases := []struct {
+		name string
+		b    bond.Bond
+	}{
+		{
+			name: "price vastly exceeds any plausible PV given a near-zero coupon",
+			b: bond.Bond{
+				FaceValue:        1000,
+				AnnualCouponRate: 0.001,
+				CouponsPerYear:   1,
+				PeriodsRemaining: 5,
+				Price:            100000,
+			},
+		},
+		{
+			name: "zero-coupon bond priced far above face value",
+			b: bond.Bond{
+				FaceValue:        1000,
+				AnnualCouponRate: 0.0,
+				CouponsPerYear:   1,
+				PeriodsRemaining: 1,
+				Price:            1e9,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		ytm, err := tc.b.YieldToMaturity()
+		if err != bond.ErrDidNotConverge {
+			t.Errorf("%s: want ErrDidNotConverge, got ytm=%v err=%v", tc.name, ytm, err)
+		}
+	}
+}
+
 func TestZeroCoupon_YTM(t *testing.T) {
 	// Zero-coupon bond: no periodic payments, all value at maturity.
 	zc := bond.Bond{

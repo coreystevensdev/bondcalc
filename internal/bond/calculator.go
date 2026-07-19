@@ -10,6 +10,13 @@ import (
 // ErrInvalidInput is returned when caller-supplied values violate domain constraints.
 var ErrInvalidInput = errors.New("invalid bond parameters")
 
+// ErrDidNotConverge is returned when the Newton-Raphson YTM solver exhausts
+// its iteration budget without finding a stable root.
+var ErrDidNotConverge = errors.New("yield to maturity solver did not converge")
+
+// below this, a Newton step divides by a near-zero derivative and blows up toward Inf
+const derivativeEpsilon = 1e-12
+
 type Bond struct {
 	// FaceValue is the par value paid at maturity (e.g. 1000.00).
 	FaceValue float64
@@ -75,6 +82,7 @@ func (b Bond) YieldToMaturity() (float64, error) {
 		r = 0.01
 	}
 
+	converged := false
 	for i := 0; i < 200; i++ {
 		discount := math.Pow(1+r, n)
 		pv := coupon*(1-1/discount)/r + b.FaceValue/discount
@@ -83,11 +91,23 @@ func (b Bond) YieldToMaturity() (float64, error) {
 			coupon*n/((r*discount*(1+r))) +
 			-b.FaceValue*n/(discount*(1+r))
 
+		if math.Abs(dpv) < derivativeEpsilon {
+			return 0, ErrDidNotConverge
+		}
+
 		delta := (pv - b.Price) / dpv
 		r -= delta
+		if math.IsNaN(r) || math.IsInf(r, 0) {
+			return 0, ErrDidNotConverge
+		}
 		if math.Abs(delta) < 1e-10 {
+			converged = true
 			break
 		}
+	}
+
+	if !converged {
+		return 0, ErrDidNotConverge
 	}
 
 	return r * float64(b.CouponsPerYear), nil

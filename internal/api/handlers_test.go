@@ -83,6 +83,32 @@ func TestCalculateMissingBody400(t *testing.T) {
 	}
 }
 
+func TestCalculateNonConvergentInput422(t *testing.T) {
+	r := setupRouter()
+	tok := makeToken(t)
+
+	// Binding-valid, but the price is so far past any plausible present value
+	// for this near-zero coupon that Newton-Raphson never converges.
+	body := map[string]any{
+		"face_value":         1000.0,
+		"annual_coupon_rate": 0.001,
+		"coupons_per_year":   1,
+		"periods_remaining":  5,
+		"price":              100000.0,
+	}
+	b, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/calculate", bytes.NewBuffer(b))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestCalculateValidRequest200(t *testing.T) {
 	r := setupRouter()
 	tok := makeToken(t)
