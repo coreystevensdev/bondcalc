@@ -1,7 +1,7 @@
 # bondcalc
 
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
-![18 tests](https://img.shields.io/badge/tests-18-brightgreen)
+![21 tests](https://img.shields.io/badge/tests-21-brightgreen)
 
 REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication, running on a single EC2 instance at [http://52.22.210.61:8080/health](http://52.22.210.61:8080/health). `/api/v1/calculate` needs a bearer token, so the health endpoint is the part you can hit without one.
 
@@ -91,7 +91,7 @@ Response:
 go test -v -race ./...
 ```
 
-18 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, and the relationship invariants (YTM < coupon on premium, Macaulay > Modified).
+21 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, and the relationship invariants (YTM < coupon on premium, Macaulay > Modified).
 
 ## Deploy
 
