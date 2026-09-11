@@ -156,3 +156,16 @@ resource "aws_instance" "api" {
     ignore_changes = [user_data, ami]
   }
 }
+
+# The instance's auto-assigned public IP changes if it is ever replaced, and the
+# README links that address. An EIP pins it. No extra cost: AWS bills every public
+# IPv4 whether auto-assigned or elastic, and attaching this releases the other, so
+# the instance still has exactly one.
+resource "aws_eip" "api" {
+  instance = aws_instance.api.id
+  domain   = "vpc"
+
+  tags = {
+    Name = "bondcalc-api"
+  }
+}
