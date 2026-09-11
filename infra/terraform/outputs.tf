@@ -16,3 +16,8 @@ output "instance_id" {
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
 }
+
+output "api_elastic_ip" {
+  description = "Stable public address for the API"
+  value       = aws_eip.api.public_ip
+}
