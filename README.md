@@ -3,7 +3,7 @@
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
 ![18 tests](https://img.shields.io/badge/tests-18-brightgreen)
 
-REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication and deployed to a single free-tier EC2 instance.
+REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication. Runs locally with `docker compose up`; `infra/` holds the Terraform to put it on a single free-tier EC2 instance.
 
 Deploy via Terraform to EC2 (see `infra/`). No ALB, no NAT Gateway: the container listens directly on the instance's public IP, which keeps the whole stack inside AWS's 12-month free tier. Spin up locally with `docker compose up`.
 
