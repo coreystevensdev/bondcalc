@@ -105,7 +105,7 @@ resource "aws_iam_instance_profile" "ec2" {
 
 resource "aws_instance" "api" {
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t2.micro" # Free tier eligible (12 months).
+  instance_type          = "t3.micro" # Free tier eligible; t2.micro is not, on newer accounts.
   iam_instance_profile   = aws_iam_instance_profile.ec2.name
   vpc_security_group_ids = [aws_security_group.ec2.id]
   subnet_id              = data.aws_subnets.default.ids[0]
