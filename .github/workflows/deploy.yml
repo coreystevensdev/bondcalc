@@ -13,12 +13,11 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -29,7 +28,7 @@ jobs:
 
       - name: Set image tag
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.sha }}
           ECR_REPO: ${{ secrets.ECR_API_REPO }}
         run: |
           SHORT="${HEAD_SHA:0:7}"
