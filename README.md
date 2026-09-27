@@ -92,10 +92,10 @@ Response:
 ```json
 {
   "current_yield": 0.052632,
-  "yield_to_maturity": 0.054975,
-  "macaulay_duration_years": 7.9341,
-  "modified_duration_years": 7.7221,
-  "coupon_payment": 25.0
+  "yield_to_maturity": 0.056617,
+  "macaulay_duration_years": 7.9273,
+  "modified_duration_years": 7.709,
+  "coupon_payment": 25
 }
 ```
 
