@@ -25,11 +25,11 @@ type limiter struct {
 // RateLimit permits limit requests per client per sliding window, answering 429
 // past that.
 //
-// Keyed on the socket peer rather than gin's ClientIP(): ClientIP() honours
-// X-Forwarded-For from any source unless trusted proxies are configured, so that
-// key would let one caller rotate a header and spend everyone's budget. Putting a
-// reverse proxy in front means switching to ClientIP() and setting trusted
-// proxies in the same change, never separately.
+// Keyed on ClientIP(), which is only safe because Register pins TrustedProxies to
+// loopback. gin honours X-Forwarded-For from any source by default, and this port
+// is reachable from the internet, so without that pinning one caller could rotate
+// a header and spend everyone's budget. The two belong together: do not widen
+// TrustedProxies without rereading this.
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	l := &limiter{
 		hits:   make(map[string][]time.Time),
@@ -39,7 +39,7 @@ func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	retryAfter := strconv.Itoa(int(window.Seconds()))
 
 	return func(c *gin.Context) {
-		if !l.allow(c.RemoteIP()) {
+		if !l.allow(c.ClientIP()) {
 			c.Header("Retry-After", retryAfter)
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
 			return
