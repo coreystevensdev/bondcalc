@@ -13,6 +13,9 @@ import (
 func limitedRouter(limit int, window time.Duration) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	if err := r.SetTrustedProxies(api.TrustedProxies); err != nil {
+		panic(err)
+	}
 	r.Use(api.RateLimit(limit, window))
 	r.GET("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 	return r
@@ -103,5 +106,31 @@ func TestRateLimitIgnoresForwardedForHeader(t *testing.T) {
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("spoofed X-Forwarded-For bypassed the limit, got %d", w.Code)
+	}
+}
+
+// Once Caddy fronts this, every request arrives from loopback and the real
+// caller is only in X-Forwarded-For. Without trusting that header from the proxy,
+// the whole internet would share one bucket.
+func TestRateLimitTrustsForwardedForFromLoopback(t *testing.T) {
+	r := limitedRouter(2, time.Minute)
+
+	hit := func(fwd string) int {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/probe", nil)
+		req.RemoteAddr = "127.0.0.1:55555" // as the reverse proxy would appear
+		req.Header.Set("X-Forwarded-For", fwd)
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	hit("203.0.113.10")
+	hit("203.0.113.10")
+	if code := hit("203.0.113.10"); code != http.StatusTooManyRequests {
+		t.Fatalf("third request from the same forwarded client should be 429, got %d", code)
+	}
+	// A different real client behind the same proxy must keep its own budget.
+	if code := hit("203.0.113.11"); code != http.StatusOK {
+		t.Fatalf("a different forwarded client should not be limited, got %d", code)
 	}
 }

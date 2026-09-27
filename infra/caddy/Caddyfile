@@ -1,0 +1,19 @@
+# TLS for the two services sharing this instance. Caddy runs with --network host,
+# so it binds 80/443 directly and reaches each backend on loopback. That also means
+# every proxied request arrives at the backend from 127.0.0.1, which is exactly the
+# set internal/api/routes.go pins TrustedProxies to; widening one without the other
+# breaks the demo rate limiter.
+#
+# No ACME email is configured, so Let's Encrypt cannot send expiry warnings. Caddy
+# renews on its own, and adding `email you@example.com` in this global block turns
+# the warnings on.
+
+bondcalc.coreystevens.dev {
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Runs on 8081 and is not published to the host's public interface, so this is the
+# only route to it.
+titlerate.coreystevens.dev {
+	reverse_proxy 127.0.0.1:8081
+}
