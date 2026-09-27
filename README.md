@@ -1,9 +1,9 @@
 # bondcalc
 
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
-![21 tests](https://img.shields.io/badge/tests-21-brightgreen)
+![30 tests](https://img.shields.io/badge/tests-30-brightgreen)
 
-REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go with JWT authentication, running on a single EC2 instance at [http://52.22.210.61:8080/health](http://52.22.210.61:8080/health). `/api/v1/calculate` needs a bearer token, so the health endpoint is the part you can hit without one.
+REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance. [Health](http://52.22.210.61:8080/health) answers a browser, and `POST /api/v1/demo/calculate` on the same host runs the real computation with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
 Deploy via Terraform to EC2 (see `infra/`). No ALB, no NAT Gateway: the container listens directly on the instance's public IP, which keeps the whole stack inside AWS's 12-month free tier. Spin up locally with `docker compose up`.
 
@@ -58,7 +58,21 @@ Generate a test JWT (requires Go playground or jwt.io with algorithm HS256):
 }
 ```
 
-Sign with your `JWT_SECRET`, then:
+Against the live instance, no token needed:
+
+```bash
+curl -X POST http://52.22.210.61:8080/api/v1/demo/calculate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "face_value": 1000,
+    "annual_coupon_rate": 0.05,
+    "coupons_per_year": 2,
+    "periods_remaining": 20,
+    "price": 950
+  }'
+```
+
+The authenticated route takes the same body. Sign a token with your `JWT_SECRET`, then:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/calculate \
@@ -91,7 +105,7 @@ Response:
 go test -v -race ./...
 ```
 
-21 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, and the relationship invariants (YTM < coupon on premium, Macaulay > Modified).
+30 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, the relationship invariants (YTM < coupon on premium, Macaulay > Modified), and the demo route's limiter: per-caller isolation, slots returning as they age out, a spoofed `X-Forwarded-For` failing to buy a fresh budget, and idle keys being swept so the window map stays bounded.
 
 ## Deploy
 
@@ -104,7 +118,7 @@ Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRO
 - YTM solver assumes non-negative periodic yield; deeply distressed bonds (price near zero) may not converge within 200 iterations.
 - Semi-annual convention assumed for all duration math when `coupons_per_year = 2`; quarterly and monthly bonds use the same formula with the appropriate period length.
 - JWT is HS256 shared-secret: acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
-- Rate limiting is absent; add an in-process sliding window before exposing to public traffic beyond a demo.
+- Rate limiting covers the demo route only, and the window lives in process: a second replica would let one caller spend the limit twice over, and a restart forgets every window. The authenticated route is unlimited on the assumption a token holder is not anonymous.
 - No TLS: the API is plain HTTP on port 8080. Adding HTTPS means adding back an ALB with an ACM certificate, which moves the deploy outside the free tier.
 - Single EC2 instance with no auto-recovery configured; an instance failure means manual intervention, not automatic failover.
 
