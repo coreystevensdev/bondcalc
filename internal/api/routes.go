@@ -18,7 +18,18 @@ const (
 // Anything else reaching the port directly is keyed on its own address, which is
 // what keeps the demo limiter from being bypassed with one header. Exported so the
 // tests assert against the same list the server runs with, rather than a copy.
-var TrustedProxies = []string{"127.0.0.1", "::1"}
+//
+// The bridge range is not decoration. Caddy runs on the host network and dials
+// 127.0.0.1:8080, which docker-proxy forwards in userland, so this process sees the
+// bridge gateway rather than loopback. With only loopback listed, gin discarded
+// Caddy's X-Forwarded-For and keyed every proxied request to that one gateway
+// address, putting all HTTPS traffic in a single 30/min bucket. Found by testing the
+// deployed service, not in a unit test, because the test simulated the address the
+// topology does not actually present.
+//
+// Widening to the bridge subnet is safe because 172.16/12 is private and unroutable
+// from the internet: no external caller can arrive with that source address.
+var TrustedProxies = []string{"127.0.0.1", "::1", "172.17.0.0/16"}
 
 func Register(r *gin.Engine) {
 	if err := r.SetTrustedProxies(TrustedProxies); err != nil {

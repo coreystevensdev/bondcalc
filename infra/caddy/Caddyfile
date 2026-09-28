@@ -1,19 +1,22 @@
-# TLS for the two services sharing this instance. Caddy runs with --network host,
-# so it binds 80/443 directly and reaches each backend on loopback. That also means
-# every proxied request arrives at the backend from 127.0.0.1, which is exactly the
-# set internal/api/routes.go pins TrustedProxies to; widening one without the other
+# TLS for the services on this instance. Caddy runs with --network host, so it
+# binds 80/443 directly and reaches each backend on loopback. Every proxied request
+# therefore arrives at the backend from 127.0.0.1, which is exactly the set
+# internal/api/routes.go pins TrustedProxies to. Widening one without the other
 # breaks the demo rate limiter.
 #
-# No ACME email is configured, so Let's Encrypt cannot send expiry warnings. Caddy
-# renews on its own, and adding `email you@example.com` in this global block turns
-# the warnings on.
+# No ACME email, so Let's Encrypt cannot send expiry warnings. Caddy renews on its
+# own; adding `email you@example.com` in a global block turns the warnings on.
 
-bondcalc.coreystevens.dev {
+# sslip.io resolves any IP embedded in the hostname, so this gets a real
+# certificate without waiting on a DNS record. Swapping it for a vanity subdomain
+# is this one line plus an A record; nothing else here changes.
+52-22-210-61.sslip.io {
 	reverse_proxy 127.0.0.1:8080
 }
 
-# Runs on 8081 and is not published to the host's public interface, so this is the
-# only route to it.
-titlerate.coreystevens.dev {
-	reverse_proxy 127.0.0.1:8081
-}
+# titlerate-java will listen on 127.0.0.1:8081. Left commented until it is actually
+# deployed, because a site block pointing at a dead port answers 502, and a public
+# URL that returns 502 is worse than one that does not exist yet.
+#
+# 52-22-210-61.sslip.io would collide with the block above, so titlerate needs its
+# own hostname: a subdomain once DNS exists, or a second instance address.

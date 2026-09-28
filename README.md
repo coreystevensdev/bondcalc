@@ -1,7 +1,7 @@
 # bondcalc
 
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
-![31 tests](https://img.shields.io/badge/tests-31-brightgreen)
+![33 tests](https://img.shields.io/badge/tests-33-brightgreen)
 
 REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance. [Health](http://52.22.210.61:8080/health) answers a browser, and `POST /api/v1/demo/calculate` on the same host runs the real computation with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
@@ -105,7 +105,7 @@ Response:
 go test -v -race ./...
 ```
 
-31 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, the relationship invariants (YTM < coupon on premium, Macaulay > Modified), and the demo route's limiter: per-caller isolation, slots returning as they age out, a spoofed `X-Forwarded-For` from an untrusted peer failing to buy a fresh budget, a forwarded address from loopback getting its own bucket so a reverse proxy does not collapse every visitor into one, and idle keys being swept so the window map stays bounded.
+33 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, the relationship invariants (YTM < coupon on premium, Macaulay > Modified), and the demo route's limiter: per-caller isolation, slots returning as they age out, a spoofed `X-Forwarded-For` from an untrusted peer failing to buy a fresh budget, a forwarded address getting its own bucket from both loopback and the docker bridge, which is what the deployed proxy actually presents and what kept every HTTPS visitor in one bucket until it was measured, and idle keys being swept so the window map stays bounded.
 
 ## Deploy
 
