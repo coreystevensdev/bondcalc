@@ -134,3 +134,52 @@ func TestRateLimitTrustsForwardedForFromLoopback(t *testing.T) {
 		t.Fatalf("a different forwarded client should not be limited, got %d", code)
 	}
 }
+
+// The proxy does not reach the backend from 127.0.0.1 in the deployed topology.
+// Caddy runs on the host network and connects to 127.0.0.1:8080, which docker-proxy
+// forwards in userland, so the container sees the bridge gateway (172.17.0.1). With
+// only loopback trusted, gin discarded Caddy's X-Forwarded-For and keyed every
+// proxied request to that one address: a single global bucket for all HTTPS traffic.
+// Measured in production, not hypothesised.
+func TestRateLimitTrustsForwardedForFromDockerBridge(t *testing.T) {
+	r := limitedRouter(2, time.Minute)
+
+	hit := func(fwd string) int {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/probe", nil)
+		req.RemoteAddr = "172.17.0.1:44444" // docker-proxy, as the container sees it
+		req.Header.Set("X-Forwarded-For", fwd)
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	hit("198.51.100.20")
+	hit("198.51.100.20")
+	if code := hit("198.51.100.20"); code != http.StatusTooManyRequests {
+		t.Fatalf("third request from the same forwarded client should be 429, got %d", code)
+	}
+	if code := hit("198.51.100.21"); code != http.StatusOK {
+		t.Fatalf("a different client behind the same proxy must keep its own budget, got %d", code)
+	}
+}
+
+// The bridge range is private and unroutable from the internet, so widening trust to
+// it cannot be abused from outside. A public peer still cannot forge a client.
+func TestRateLimitStillIgnoresForwardedForFromAPublicPeer(t *testing.T) {
+	r := limitedRouter(2, time.Minute)
+
+	hit := func(peer, fwd string) int {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodGet, "/probe", nil)
+		req.RemoteAddr = peer + ":1234"
+		req.Header.Set("X-Forwarded-For", fwd)
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	hit("198.51.100.30", "10.1.1.1")
+	hit("198.51.100.30", "10.1.1.2")
+	if code := hit("198.51.100.30", "10.1.1.3"); code != http.StatusTooManyRequests {
+		t.Fatalf("a public peer rotating X-Forwarded-For must not gain budget, got %d", code)
+	}
+}
