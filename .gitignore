@@ -13,6 +13,7 @@ terraform.tfvars
 ## BMad / AI-dev artifacts
 _bmad-output/
 _bmad/
+.claude/
 docs/superpowers/
 *_explained.md
 CLAUDE.md
