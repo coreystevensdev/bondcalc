@@ -3,9 +3,9 @@
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
 ![33 tests](https://img.shields.io/badge/tests-33-brightgreen)
 
-REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance. [Health](http://52.22.210.61:8080/health) answers a browser, and `POST /api/v1/demo/calculate` on the same host runs the real computation with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
+REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Health](https://52-22-210-61.sslip.io/health) answers a browser over HTTPS, and `POST https://52-22-210-61.sslip.io/api/v1/demo/calculate` runs the real computation with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
-Deploy via Terraform to EC2 (see `infra/`). No ALB, no NAT Gateway: the container listens directly on the instance's public IP, which keeps the whole stack inside AWS's 12-month free tier. Spin up locally with `docker compose up`.
+Deploy via Terraform to EC2 (see `infra/`). No ALB and no NAT Gateway: Caddy terminates TLS on the instance itself and reverse-proxies to the Go binary on loopback, so HTTPS costs nothing beyond the instance already running. Spin up locally with `docker compose up`.
 
 ## Problem
 
@@ -26,7 +26,9 @@ flowchart TD
     D & E --> F["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
 ```
 
-The container binds straight to the instance's public IP on port 8080. There's no ALB or TLS termination in front of it, since either one would push the deploy outside the free tier; add an ALB with an ACM certificate if this ever needs to run past demo traffic.
+TLS terminates on the instance. Caddy runs with `--network host`, binds 80 and 443, and reverse-proxies to the Go binary on `127.0.0.1:8080`, so no ALB and no ACM certificate are involved. The hostname is `52-22-210-61.sslip.io`: sslip.io resolves any IP embedded in the name, which gives Caddy something real to get a Let's Encrypt certificate for without waiting on a DNS record. Moving to a vanity subdomain is one line in the Caddyfile plus an A record.
+
+Two constraints that come with that arrangement. Every proxied request reaches the Go process from `127.0.0.1`, which is exactly what `internal/api/routes.go` pins `TrustedProxies` to, so widening one without the other breaks the demo rate limiter. And there is no ACME email configured, so Let's Encrypt cannot send expiry warnings; Caddy renews on its own, and adding an `email` directive in a global block turns the warnings back on.
 
 ## Tech Stack
 
@@ -61,7 +63,7 @@ Generate a test JWT (requires Go playground or jwt.io with algorithm HS256):
 Against the live instance, no token needed:
 
 ```bash
-curl -X POST http://52.22.210.61:8080/api/v1/demo/calculate \
+curl -X POST https://52-22-210-61.sslip.io/api/v1/demo/calculate \
   -H "Content-Type: application/json" \
   -d '{
     "face_value": 1000,
@@ -119,7 +121,8 @@ Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRO
 - Semi-annual convention assumed for all duration math when `coupons_per_year = 2`; quarterly and monthly bonds use the same formula with the appropriate period length.
 - JWT is HS256 shared-secret: acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
 - Rate limiting covers the demo route only, and the window lives in process: a second replica would let one caller spend the limit twice over, and a restart forgets every window. The authenticated route is unlimited on the assumption a token holder is not anonymous.
-- No TLS: the API is plain HTTP on port 8080. Adding HTTPS means adding back an ALB with an ACM certificate, which moves the deploy outside the free tier.
+- One instance, no redundancy: a single EC2 host serves everything, so an instance failure is downtime and a deploy is a brief gap. An ALB across two instances is the fix, and it is not worth the cost for demo traffic.
+- Certificate renewal is unmonitored: Caddy renews on its own and there is no ACME email set, so a failed renewal would surface as a browser warning rather than as an alert.
 - Single EC2 instance with no auto-recovery configured; an instance failure means manual intervention, not automatic failover.
 
 ## License
