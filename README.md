@@ -3,7 +3,7 @@
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
 ![33 tests](https://img.shields.io/badge/tests-33-brightgreen)
 
-REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Health](https://52-22-210-61.sslip.io/health) answers a browser over HTTPS, and `POST https://52-22-210-61.sslip.io/api/v1/demo/calculate` runs the real computation with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
+REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Try it](https://52-22-210-61.sslip.io/): the page posts to the same `POST /api/v1/demo/calculate` the curl below does, with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
 Deploy via Terraform to EC2 (see `infra/`). No ALB and no NAT Gateway: Caddy terminates TLS on the instance itself and reverse-proxies to the Go binary on loopback, so HTTPS costs nothing beyond the instance already running. Spin up locally with `docker compose up`.
 

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bondcalc</title>
+<meta name="description" content="Yield to maturity, duration and current yield for any bond. Solved by Newton-Raphson.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23DCE3DA' stroke='%2316251E'/%3E%3Cpath d='M3 6h10' stroke='%2316251E' stroke-dasharray='1 1'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,400&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  /* Safety-paper sage and intaglio ink, after the engraved bearer certificates
+     these terms come from. The seal red is the only accent and is reserved for
+     the solved yield and for errors. */
+  :root {
+    --paper:      #DCE3DA;
+    --card:       #E7ECE4;
+    --ink:        #16251E;
+    --ink-soft:   #46574E;
+    --ink-faint:  #6B7C72;
+    --rule:       #B4C2B6;
+    --rule-soft:  #C7D2C8;
+    --seal:       #7B2230;
+    --field:      #F2F5EF;
+    --focus:      #2F5D4A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #111713;
+      --card:       #18201A;
+      --ink:        #DCE5DC;
+      --ink-soft:   #A3B3A6;
+      --ink-faint:  #7C8C80;
+      --rule:       #2C3A30;
+      --rule-soft:  #24302A;
+      --seal:       #D98A91;
+      --field:      #0E1410;
+      --focus:      #79B79A;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Spectral", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 72px;
+  }
+
+  /* masthead */
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 20px; }
+  h1 {
+    font-size: clamp(34px, 6vw, 52px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+    line-height: 1;
+  }
+  .lede {
+    margin: 14px 0 0;
+    font-size: clamp(18px, 2.4vw, 22px);
+    font-weight: 300;
+    color: var(--ink-soft);
+    max-width: 34ch;
+  }
+  .masthead-row { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: baseline; justify-content: space-between; }
+  .status {
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+  .status a { color: inherit; text-underline-offset: 3px; }
+  .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--focus); margin-right: 6px; vertical-align: 1px;
+  }
+
+  /* the two panels */
+  .work {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 32px;
+  }
+  @media (max-width: 720px) { .work { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--card); padding: 26px 24px; }
+
+  /* The panel title is a paragraph, not a legend element. A fieldset's rendered
+     legend lays out inside the border box and the UA forces float:none on it,
+     so it punched a hole through the panel background that no float or width
+     could close. The fieldset keeps its grouping via aria-labelledby. */
+  .panel-title {
+    font-family: "Spectral", Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--ink-soft);
+    padding: 0;
+    margin: 0 0 18px;
+  }
+
+  fieldset { border: 0; padding: 0; margin: 0; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; }
+  .field label { font-size: 14px; color: var(--ink-soft); }
+  .field .hint { font-size: 12.5px; color: var(--ink-faint); font-style: italic; }
+
+  input[type="number"] {
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--field);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 9px 11px;
+    width: 100%;
+  }
+  input[type="number"]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+
+  button {
+    font-family: "Spectral", Georgia, serif;
+    font-size: 16px;
+    color: var(--field);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    padding: 10px 22px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  button:hover { background: var(--ink-soft); border-color: var(--ink-soft); }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button[disabled] { opacity: .5; cursor: progress; }
+
+  /* the solved figure carries the weight */
+  .headline-figure {
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: clamp(40px, 8vw, 62px);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--seal);
+    margin: 0;
+  }
+  .headline-caption { font-size: 14px; color: var(--ink-soft); margin: 8px 0 24px; }
+
+  dl.figures { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 11px 16px; }
+  dl.figures dt { font-size: 15px; color: var(--ink-soft); }
+  dl.figures dd {
+    margin: 0; text-align: right;
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Before the first calculation the panel shows its own shape, greyed, rather
+     than an empty box with a sentence in it. */
+  .at-rest .headline-figure { color: var(--ink-faint); }
+  .at-rest dl.figures dd { color: var(--ink-faint); }
+  .err { color: var(--seal); font-size: 15px; margin: 0; }
+
+  /* the coupon strip: one tab per remaining payment, which is where the
+     "coupon rate" input gets its name. Length is the data. */
+  .strip-wrap { margin-top: 30px; }
+  .strip {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    height: 38px;
+    overflow: hidden;
+  }
+  .coupon {
+    flex: 0 0 13px;
+    position: relative;
+    background: var(--field);
+    border: 1px solid var(--rule);
+    border-radius: 0 0 2px 2px;
+  }
+  /* the perforation you would tear along */
+  .coupon::before {
+    content: "";
+    position: absolute; left: 1px; right: 1px; top: 9px;
+    border-top: 1px dashed var(--rule);
+  }
+  .coupon::after {
+    content: "";
+    position: absolute; left: 3px; right: 3px; bottom: 5px;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .coupon.paid { background: transparent; border-color: var(--rule-soft); border-style: dotted; }
+  .strip-caption {
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-top: 9px;
+  }
+
+  footer {
+    margin-top: 44px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 14px; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between;
+  }
+  footer a { color: var(--ink-soft); text-underline-offset: 3px; }
+  code {
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: .88em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <header>
+    <div class="masthead-row">
+      <h1>bondcalc</h1>
+      <p class="status"><span class="dot" aria-hidden="true"></span><a href="/health">GET /health</a></p>
+    </div>
+    <p class="lede">What a bond yields if you hold it to maturity, and how far its price moves when rates do.</p>
+  </header>
+
+  <form class="work" id="calc" novalidate>
+    <fieldset class="panel" aria-labelledby="terms-title">
+      <p class="panel-title" id="terms-title">Terms</p>
+
+      <div class="field">
+        <label for="face_value">Face value</label>
+        <input type="number" id="face_value" name="face_value" value="1000" min="0.01" step="any" required>
+        <span class="hint">What it pays back at maturity.</span>
+      </div>
+
+      <div class="field">
+        <label for="annual_coupon_rate">Annual coupon rate</label>
+        <input type="number" id="annual_coupon_rate" name="annual_coupon_rate" value="5" min="0" max="100" step="any">
+        <span class="hint">Percent of face, paid out each year. Leave at 0 for a zero-coupon bond.</span>
+      </div>
+
+      <div class="field">
+        <label for="price">Price today</label>
+        <input type="number" id="price" name="price" value="950" min="0.01" step="any" required>
+      </div>
+
+      <div class="field">
+        <label for="coupons_per_year">Payments per year</label>
+        <input type="number" id="coupons_per_year" name="coupons_per_year" value="2" min="1" max="12" step="1" required>
+      </div>
+
+      <div class="field">
+        <label for="periods_remaining">Payments remaining</label>
+        <input type="number" id="periods_remaining" name="periods_remaining" value="20" min="1" step="1" required>
+      </div>
+
+      <button type="submit" id="go">Calculate</button>
+    </fieldset>
+
+    <div class="panel" id="out" aria-live="polite">
+      <p class="panel-title">Result</p>
+      <div id="figures" class="at-rest">
+        <p class="headline-figure" id="yield_to_maturity">&mdash;</p>
+        <p class="headline-caption">Yield to maturity, annualised. Solved by Newton-Raphson.</p>
+        <dl class="figures">
+          <dt>Current yield</dt>      <dd id="current_yield">&mdash;</dd>
+          <dt>Coupon payment</dt>     <dd id="coupon_payment">&mdash;</dd>
+          <dt>Macaulay duration</dt>  <dd id="macaulay_duration_years">&mdash;</dd>
+          <dt>Modified duration</dt>  <dd id="modified_duration_years">&mdash;</dd>
+        </dl>
+      </div>
+      <p class="err" id="err" hidden></p>
+    </div>
+  </form>
+
+  <section class="strip-wrap" aria-hidden="true">
+    <div class="strip" id="strip"></div>
+    <p class="strip-caption" id="strip-caption"></p>
+  </section>
+
+  <footer>
+    <span>Go, no database. <code>POST /api/v1/demo/calculate</code> runs this with no token, 30 a minute.</span>
+    <a href="https://github.com/coreystevensdev/bondcalc">Source</a>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var FIELDS = ["face_value", "annual_coupon_rate", "coupons_per_year", "periods_remaining", "price"];
+  var form = document.getElementById("calc");
+  var btn = document.getElementById("go");
+  var figures = document.getElementById("figures");
+  var errEl = document.getElementById("err");
+  var MAX_TABS = 64;
+
+  function el(id) { return document.getElementById(id); }
+  function pct(x) { return (x * 100).toFixed(4).replace(/0+$/, "").replace(/\.$/, "") + "%"; }
+  function yrs(x) { return x.toFixed(4).replace(/0+$/, "").replace(/\.$/, "") + " yr"; }
+  function money(x) {
+    return x.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  // One tab per remaining payment. Past MAX_TABS the strip would stop being
+  // readable, so it truncates and the caption says so rather than lying.
+  function drawStrip() {
+    var n = parseInt(el("periods_remaining").value, 10);
+    var strip = el("strip");
+    var caption = el("strip-caption");
+    strip.textContent = "";
+    if (!isFinite(n) || n < 1) { caption.textContent = ""; return; }
+    var shown = Math.min(n, MAX_TABS);
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < shown; i++) {
+      var tab = document.createElement("span");
+      tab.className = "coupon";
+      frag.appendChild(tab);
+    }
+    strip.appendChild(frag);
+    caption.textContent = n === shown
+      ? n + " payments remaining"
+      : n + " payments remaining, first " + shown + " drawn";
+  }
+
+  function showError(msg) {
+    errEl.hidden = false;
+    errEl.textContent = msg;
+  }
+
+  function showResult(d) {
+    errEl.hidden = true;
+    figures.classList.remove("at-rest");
+    el("yield_to_maturity").textContent = pct(d.yield_to_maturity);
+    el("current_yield").textContent = pct(d.current_yield);
+    el("coupon_payment").textContent = money(d.coupon_payment);
+    el("macaulay_duration_years").textContent = yrs(d.macaulay_duration_years);
+    el("modified_duration_years").textContent = yrs(d.modified_duration_years);
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var body = {};
+    for (var i = 0; i < FIELDS.length; i++) {
+      var name = FIELDS[i];
+      var raw = el(name).value;
+      var n = Number(raw);
+      if (raw === "" || !isFinite(n)) { showError("Every field needs a number."); return; }
+      body[name] = name === "annual_coupon_rate" ? n / 100 : n;
+    }
+    btn.disabled = true;
+    fetch("/api/v1/demo/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
+    }).then(function (r) {
+      if (r.status === 429) { showError("Rate limited: this demo allows 30 calculations a minute. Try again shortly."); return; }
+      if (!r.ok) { showError(r.data && r.data.error ? r.data.error : "That request was rejected."); return; }
+      showResult(r.data);
+    }).catch(function () {
+      showError("Could not reach the API.");
+    }).then(function () {
+      btn.disabled = false;
+    });
+  });
+
+  el("periods_remaining").addEventListener("input", drawStrip);
+  drawStrip();
+})();
+</script>
+</body>
+</html>

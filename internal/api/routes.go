@@ -36,6 +36,9 @@ func Register(r *gin.Engine) {
 		panic("trusted proxies: " + err.Error())
 	}
 
+	// Outside the demo group on purpose: a browser refresh must not spend the
+	// same 30/min budget the calculation endpoint needs.
+	r.GET("/", Index)
 	r.GET("/health", Health)
 
 	v1 := r.Group("/api/v1")
