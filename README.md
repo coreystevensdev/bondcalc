@@ -63,7 +63,7 @@ Generate a test JWT (requires Go playground or jwt.io with algorithm HS256):
 Against the live instance, no token needed:
 
 ```bash
-curl -X POST http://52.22.210.61:8080/api/v1/demo/calculate \
+curl -X POST https://52-22-210-61.sslip.io/api/v1/demo/calculate \
   -H "Content-Type: application/json" \
   -d '{
     "face_value": 1000,
