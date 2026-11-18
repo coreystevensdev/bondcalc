@@ -1,7 +1,7 @@
 # bondcalc
 
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
-![33 tests](https://img.shields.io/badge/tests-33-brightgreen)
+![36 tests](https://img.shields.io/badge/tests-36-brightgreen)
 
 REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Try it](https://52-22-210-61.sslip.io/): the page posts to the same `POST /api/v1/demo/calculate` the curl below does, with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
@@ -107,7 +107,7 @@ Response:
 go test -v -race ./...
 ```
 
-33 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, the relationship invariants (YTM < coupon on premium, Macaulay > Modified), and the demo route's limiter: per-caller isolation, slots returning as they age out, a spoofed `X-Forwarded-For` from an untrusted peer failing to buy a fresh budget, a forwarded address getting its own bucket from both loopback and the docker bridge, which is what the deployed proxy actually presents and what kept every HTTPS visitor in one bucket until it was measured, and idle keys being swept so the window map stays bounded.
+36 tests covering: at-par bonds, discount bonds, premium bonds, zero-coupon bonds, all validation error paths, the relationship invariants (YTM < coupon on premium, Macaulay > Modified), and the demo route's limiter: per-caller isolation, slots returning as they age out, a spoofed `X-Forwarded-For` from an untrusted peer failing to buy a fresh budget, a forwarded address getting its own bucket from both loopback and the docker bridge, which is what the deployed proxy actually presents and what kept every HTTPS visitor in one bucket until it was measured, idle keys being swept so the window map stays bounded, and the demo page: that the root serves HTML, that it names every request and response field the handler binds so a rename on either side cannot break the form silently, and that serving it does not spend the limiter's budget.
 
 ## Deploy
 
