@@ -45,7 +45,7 @@ jobs:
     # without a human in the path; the gate here is which ref may deploy, not who.
     environment:
       name: production
-      url: https://52-22-210-61.sslip.io/
+      url: https://bondcalc.coreystevens.dev/
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # workflow_run fires for any CI run matching the filter, and CI runs on

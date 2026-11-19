@@ -3,7 +3,7 @@
 ![CI](https://github.com/coreystevensdev/bondcalc/actions/workflows/ci.yml/badge.svg)
 ![36 tests](https://img.shields.io/badge/tests-36-brightgreen)
 
-REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Try it](https://52-22-210-61.sslip.io/): the page posts to the same `POST /api/v1/demo/calculate` the curl below does, with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
+REST API that computes fixed-income metrics for any bond: yield to maturity via Newton-Raphson, Macaulay and modified duration, and current yield. Written in Go, running on a single EC2 instance behind Caddy. [Try it](https://bondcalc.coreystevens.dev/): the page posts to the same `POST /api/v1/demo/calculate` the curl below does, with no token, capped at 30 requests a minute per caller. `/api/v1/calculate` is the same math behind a bearer token, for a client that has one.
 
 Deploy via Terraform to EC2 (see `infra/`). No ALB and no NAT Gateway: Caddy terminates TLS on the instance itself and reverse-proxies to the Go binary on loopback, so HTTPS costs nothing beyond the instance already running. Spin up locally with `docker compose up`.
 
@@ -26,7 +26,7 @@ flowchart TD
     D & E --> F["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
 ```
 
-TLS terminates on the instance. Caddy runs with `--network host`, binds 80 and 443, and reverse-proxies to the Go binary on `127.0.0.1:8080`, so no ALB and no ACM certificate are involved. The hostname is `52-22-210-61.sslip.io`: sslip.io resolves any IP embedded in the name, which gives Caddy something real to get a Let's Encrypt certificate for without waiting on a DNS record. Moving to a vanity subdomain is one line in the Caddyfile plus an A record.
+TLS terminates on the instance. Caddy runs with `--network host`, binds 80 and 443, and reverse-proxies to the Go binary on `127.0.0.1:8080`, so no ALB and no ACM certificate are involved. The hostname is `bondcalc.coreystevens.dev`, an A record straight to the instance rather than a proxied one, because Caddy answers the ACME challenge itself and a proxy in front of it intercepts that. It first went up on an sslip.io hostname, which resolves any IP embedded in the name and so needs no DNS record at all; that address still works and redirects here.
 
 Two constraints that come with that arrangement. Every proxied request reaches the Go process from `127.0.0.1`, which is exactly what `internal/api/routes.go` pins `TrustedProxies` to, so widening one without the other breaks the demo rate limiter. And there is no ACME email configured, so Let's Encrypt cannot send expiry warnings; Caddy renews on its own, and adding an `email` directive in a global block turns the warnings back on.
 
@@ -63,7 +63,7 @@ Generate a test JWT (requires Go playground or jwt.io with algorithm HS256):
 Against the live instance, no token needed:
 
 ```bash
-curl -X POST https://52-22-210-61.sslip.io/api/v1/demo/calculate \
+curl -X POST https://bondcalc.coreystevens.dev/api/v1/demo/calculate \
   -H "Content-Type: application/json" \
   -d '{
     "face_value": 1000,
