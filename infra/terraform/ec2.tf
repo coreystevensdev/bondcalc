@@ -3,9 +3,22 @@ resource "aws_security_group" "ec2" {
   description = "Allow API traffic; SSH is not opened, use SSM Session Manager"
   vpc_id      = data.aws_vpc.default.id
 
+  # Caddy terminates TLS on the instance and reaches every backend over loopback,
+  # so 80 and 443 are the only ports that need to be reachable. 80 exists to serve
+  # the ACME challenge and to redirect to 443.
+  #
+  # 8080 used to be open here, from before TLS moved onto the box, and it served
+  # the API in plaintext to anyone who asked. Closed 2026-11-19.
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -139,7 +152,7 @@ resource "aws_instance" "api" {
     docker run -d \
       --name api \
       --restart=always \
-      -p 8080:8080 \
+      -p 127.0.0.1:8080:8080 \
       -e "JWT_SECRET=$JWT_SECRET" \
       -e "GIN_MODE=release" \
       "$IMAGE"
