@@ -1,11 +1,35 @@
 name: Deploy to AWS EC2
+run-name: Deploy ${{ github.event.workflow_run.head_sha || github.sha }}
 
 on:
+  # Deploys follow a green CI on main rather than the merge itself, so a commit
+  # whose tests failed never reaches the box. Merging used to ship nothing at
+  # all: this was workflow_dispatch only, and both services sat on builds older
+  # than main until someone remembered to press the button.
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
   workflow_dispatch:
+    inputs:
+      force:
+        description: Deploy even though CI has not passed for this commit
+        type: boolean
+        default: false
+
+# One deploy at a time. Two runs for different commits would race on the same
+# container name and the box could end up pinned to the older image.
+# cancel-in-progress stays false: cancelling mid-SSM leaves the instance
+# half-written, and GitHub keeps only the newest pending run anyway.
+concurrency:
+  group: deploy-bondcalc-production
+  cancel-in-progress: false
 
 permissions:
   id-token: write
   contents: read
+  actions: read # reads CI's conclusion for this sha on a manual run
 
 env:
   AWS_REGION: us-east-1
@@ -13,11 +37,46 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # workflow_run fires for any CI run matching the filter, and CI runs on
+    # pull_request. A fork's default branch is also called main, so a fork PR
+    # produces a run with head_branch "main" that passes a bare branches filter.
+    # Without the event and head_repository checks this job would check out the
+    # fork's sha and deploy it with this repo's OIDC credentials.
+    #
+    # The dispatch path is pinned to main for the same reason in miniature:
+    # workflow_dispatch can be aimed at any ref.
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+       || (github.event_name == 'workflow_run'
+           && github.event.workflow_run.conclusion == 'success'
+           && github.event.workflow_run.event == 'push'
+           && github.event.workflow_run.head_branch == 'main'
+           && github.event.workflow_run.head_repository.full_name == github.repository) }}
 
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # A manual run skips the workflow_run gate, so it asks the question that
+      # gate answers. Empty is treated as failure: no completed run for this sha
+      # is not the same as a green one.
+      - name: Check CI passed for this commit
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.force }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&status=completed&branch=main&event=push&per_page=1" \
+            --jq '.workflow_runs[0].conclusion // ""')
+          echo "CI for ${SHA:0:7}: ${conclusion:-none}"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI for ${SHA:0:7} is '${conclusion:-none}'. Re-run with force checked if that is intended."
+            exit 1
+          fi
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -28,7 +87,7 @@ jobs:
 
       - name: Set image tag
         env:
-          HEAD_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           ECR_REPO: ${{ secrets.ECR_API_REPO }}
         run: |
           SHORT="${HEAD_SHA:0:7}"
