@@ -36,7 +36,7 @@ Two constraints that come with that arrangement. Caddy runs on the host network 
 
 | Layer | Technology | Why |
 |---|---|---|
-| Language | Go 1.23 | Statically compiled binary, ~10MB distroless container, no runtime overhead |
+| Language | Go 1.27 | Statically compiled binary, 8.2MB inside an 18.2MB distroless image, no runtime overhead |
 | HTTP | Gin 1.10 | Minimal middleware surface, well-understood performance profile |
 | Auth | golang-jwt/jwt v5 | HS256 shared-secret JWT, validated in a single middleware layer |
 | Build | Multi-stage Dockerfile | Builder stage compiles; distroless scratch stage ships only the binary |
