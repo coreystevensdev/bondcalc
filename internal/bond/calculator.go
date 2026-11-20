@@ -66,8 +66,9 @@ func (b Bond) CurrentYield() (float64, error) {
 }
 
 // YieldToMaturity solves for the periodic yield r such that the present value
-// of all future cash flows equals the current price. Newton-Raphson converges
-// in ~10 iterations for typical bond parameters.
+// of all future cash flows equals the current price, by Newton-Raphson against
+// the 200-iteration cap below. The count is not instrumented, so there is no
+// measured typical-case figure to quote.
 func (b Bond) YieldToMaturity() (float64, error) {
 	if err := b.validate(); err != nil {
 		return 0, err

@@ -13,22 +13,24 @@ Bond pricing math is deceptively subtle: YTM has no closed-form solution for mos
 
 ## Solution
 
-A pure-computation Go service. No database, no external dependencies at runtime. YTM solves via Newton-Raphson (converges in ~10 iterations for typical bonds). Duration computes the weighted average time to each discounted cash flow, normalized to years regardless of payment frequency.
+A pure-computation Go service. No database, no external dependencies at runtime. YTM solves via Newton-Raphson against a 200-iteration cap, returning an error rather than a wrong answer when it does not converge. Nothing instruments the iteration count, so the only claim the tests back is that a 50,000-period bond still lands inside the cap. Duration computes the weighted average time to each discounted cash flow, normalized to years regardless of payment frequency.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A[Client] --> B["EC2 t2.micro, port 8080\nJWT middleware (HS256)"]
-    B --> C["POST /api/v1/calculate\nGo binary, distroless container"]
-    C --> D["Newton-Raphson YTM\n~10 iterations to converge"]
-    C --> E["Duration calculation\nweighted avg discounted cash flows"]
-    D & E --> F["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
+    A[Client] --> B["Caddy, ports 80 and 443\nterminates TLS on the instance"]
+    B --> C["Go binary, container publishes 8080\ndistroless; 8080 closed at the security group"]
+    C --> D["POST /api/v1/demo/calculate\nno token, 30 req/min per caller"]
+    C --> E["POST /api/v1/calculate\nJWT middleware (HS256)"]
+    D & E --> F["Newton-Raphson YTM\n200-iteration cap"]
+    D & E --> G["Duration\nweighted avg discounted cash flows"]
+    F & G --> H["{current_yield, yield_to_maturity,\nmacaulay_duration_years, modified_duration_years}"]
 ```
 
-TLS terminates on the instance. Caddy runs with `--network host`, binds 80 and 443, and reverse-proxies to the Go binary on `127.0.0.1:8080`, so no ALB and no ACM certificate are involved. The hostname is `bondcalc.coreystevens.dev`, an A record straight to the instance rather than a proxied one, because Caddy answers the ACME challenge itself and a proxy in front of it intercepts that. It first went up on an sslip.io hostname, which resolves any IP embedded in the name and so needs no DNS record at all; that address still works and redirects here.
+TLS terminates on the instance. Caddy runs with `--network host`, binds 80 and 443, and reverse-proxies to the Go binary on `127.0.0.1:8080`, so no ALB and no ACM certificate are involved. Worth being precise about what keeps 8080 private: the container still publishes it on all interfaces, and the security group is the only thing that closes it, allowing 80 and 443 and nothing else. `curl` to port 8080 from outside gets no connection, but a rule change would expose plaintext immediately, so the bind address is not the control here. The hostname is `bondcalc.coreystevens.dev`, an A record straight to the instance rather than a proxied one, because Caddy answers the ACME challenge itself and a proxy in front of it intercepts that. It first went up on an sslip.io hostname, which resolves any IP embedded in the name and so needs no DNS record at all; that address still works and redirects here.
 
-Two constraints that come with that arrangement. Every proxied request reaches the Go process from `127.0.0.1`, which is exactly what `internal/api/routes.go` pins `TrustedProxies` to, so widening one without the other breaks the demo rate limiter. And there is no ACME email configured, so Let's Encrypt cannot send expiry warnings; Caddy renews on its own, and adding an `email` directive in a global block turns the warnings back on.
+Two constraints that come with that arrangement. Caddy runs on the host network and dials `127.0.0.1:8080`, which docker-proxy forwards in userland, so the Go process sees the Docker bridge gateway rather than loopback. `internal/api/routes.go` therefore pins `TrustedProxies` to `127.0.0.1`, `::1` and `172.17.0.0/16`; with only loopback listed, gin discarded Caddy's `X-Forwarded-For` and keyed every HTTPS request to that one gateway address, putting all proxied traffic in a single 30/min bucket. That was found by testing the deployed service, not in a unit test, because the test simulated an address the topology does not present. And there is no ACME email configured, so Let's Encrypt cannot send expiry warnings; Caddy renews on its own, and adding an `email` directive in a global block turns the warnings back on.
 
 ## Tech Stack
 
@@ -38,7 +40,7 @@ Two constraints that come with that arrangement. Every proxied request reaches t
 | HTTP | Gin 1.10 | Minimal middleware surface, well-understood performance profile |
 | Auth | golang-jwt/jwt v5 | HS256 shared-secret JWT, validated in a single middleware layer |
 | Build | Multi-stage Dockerfile | Builder stage compiles; distroless scratch stage ships only the binary |
-| Infrastructure | AWS EC2 t2.micro | Free-tier eligible for 12 months; OIDC-based keyless deploys via GitHub Actions + SSM |
+| Infrastructure | AWS EC2 t3.small | Shares one box with five other demos behind the same Caddy; OIDC-based keyless deploys via GitHub Actions + SSM |
 | IaC | Terraform 1.9 | GitHub OIDC role, ECR lifecycle policy, S3 remote state |
 
 ## Getting Started

@@ -1,6 +1,8 @@
 # bondcalc Infrastructure
 
-AWS deployment using Terraform. Single EC2 t2.micro running the container directly, no ALB, no NAT Gateway, no database. Free-tier eligible for 12 months on a new AWS account.
+AWS deployment using Terraform. Single EC2 instance running the container directly, no ALB, no NAT Gateway, no database.
+
+Terraform declares a `t3.micro` (`terraform/ec2.tf`). The instance actually serving this is a `t3.small` sharing the box with five other demos behind the same Caddy, so the config and the running instance disagree on size. Reconcile that before relying on a `terraform apply` here.
 
 ## Prerequisites
 
@@ -99,8 +101,7 @@ aws ssm send-command \
 
 | Resource | Monthly |
 |---|---|
-| EC2 t2.micro (free tier, 750 hrs/mo for 12 months) | $0 |
+| EC2 t3.small, on-demand, us-east-1 | about $15 |
 | ECR storage (free tier, 500 MB for 12 months) | $0 |
-| **Total** | **~$0/mo for the first 12 months** |
 
-After the free-tier window, EC2 t2.micro runs about $8/mo. `terraform destroy` tears everything down between demos.
+That is the whole box, not bondcalc's share: six demos run on it, so the per-service figure is roughly a sixth of the instance line. The earlier `$0 on the free tier` estimate assumed a `t3.micro` on a new account, and neither half of that holds now: the instance is a `t3.small`, which is not free-tier eligible, and the account is on the paid plan. `terraform destroy` still tears down everything Terraform owns.
