@@ -1,4 +1,9 @@
-FROM golang:1.23-alpine AS builder
+# The toolchain is what patches the standard library in the shipped binary, so
+# this line is the fix for the net/http, crypto/tls, crypto/x509, net/textproto,
+# encoding/xml and encoding/asn1 advisories govulncheck reported. go.mod's
+# directive does not affect that. 1.23 had fallen out of Go's two-release support
+# window, so its stdlib was unpatched rather than merely behind.
+FROM golang:1.27-alpine AS builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
