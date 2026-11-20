@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Defaulted rather than required: the README's quickstart is a bare
+      # `docker compose up`, and middleware.go panics below 32 characters.
+      - JWT_SECRET=${JWT_SECRET:-local-development-only-not-a-real-secret}
+      - PORT=${PORT:-8080}
+      - GIN_MODE=${GIN_MODE:-release}

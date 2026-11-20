@@ -45,11 +45,15 @@ Two constraints that come with that arrangement. Every proxied request reaches t
 
 ```bash
 cp .env.example .env
-# set JWT_SECRET in .env
+# set JWT_SECRET in .env, 32 characters or more
 
+set -a; source .env; set +a   # nothing in the Go code reads .env
 go mod tidy
 go run ./cmd/server
 ```
+
+Or `docker compose up`, which reads `.env` itself and defaults `JWT_SECRET` to a
+development value so the demo endpoint works with no setup at all.
 
 Generate a test JWT (requires Go playground or jwt.io with algorithm HS256):
 
