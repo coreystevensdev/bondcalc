@@ -26,10 +26,11 @@ type limiter struct {
 // past that.
 //
 // Keyed on ClientIP(), which is only safe because Register pins TrustedProxies to
-// loopback. gin honours X-Forwarded-For from any source by default, and this port
-// is reachable from the internet, so without that pinning one caller could rotate
-// a header and spend everyone's budget. The two belong together: do not widen
-// TrustedProxies without rereading this.
+// loopback plus the docker bridge. gin honours X-Forwarded-For from any source by
+// default, and every request arrives through Caddy carrying whatever header the
+// caller sent, so without that pinning one caller could rotate a header and spend
+// everyone's budget. The two belong together: do not widen TrustedProxies without
+// rereading this.
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	l := &limiter{
 		hits:   make(map[string][]time.Time),
