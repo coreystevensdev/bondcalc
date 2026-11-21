@@ -165,6 +165,11 @@ resource "aws_instance" "api" {
 
   tags = { Name = "bondcalc-api" }
 
+  # ignore_changes on user_data makes the script above a record of how this instance
+  # was built, not what it runs. The box still has the pre-2026-11-19 deploy.sh, so
+  # the container publishes 8080 on 0.0.0.0 and the security group above is the only
+  # thing closing it. Editing the -p line here changes nothing by itself: the
+  # instance has to be replaced, or the script pushed out of band.
   lifecycle {
     ignore_changes = [user_data, ami]
   }
