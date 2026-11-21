@@ -167,9 +167,11 @@ func TestValidation_NegativeCouponRate(t *testing.T) {
 	}
 }
 
-func TestYieldToMaturity_WellBehavedBondConvergesWellUnderIterationCap(t *testing.T) {
-	// 50000-period bond: pushes the solver harder than typical inputs without
-	// being pathological, so it must still land well inside the 200-iteration cap.
+func TestYieldToMaturity_FiftyThousandPeriodDiscountBondStillConverges(t *testing.T) {
+	// 50000 periods at a price of 1 against face 1000. Named for what it checks:
+	// YieldToMaturity returns (float64, error) and reports no iteration count, so
+	// nothing here can assert a margin under the 200-iteration cap. It asserts
+	// convergence without error, and a positive yield.
 	b := bond.Bond{
 		FaceValue:        1000,
 		AnnualCouponRate: 0.05,
