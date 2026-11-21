@@ -82,7 +82,7 @@ Set these in the repo settings (Settings > Secrets > Actions):
 | `AWS_ROLE_ARN` | `github_actions_role_arn` output |
 | `ECR_API_REPO` | `ecr_repository_url` output |
 | `EC2_INSTANCE_ID` | `instance_id` output |
-| `PRODUCTION_URL` | `http://<api_public_ip>:8080` |
+| `PRODUCTION_URL` | `https://bondcalc.coreystevens.dev` (the deploy smoke-tests `$PRODUCTION_URL/health`, and 8080 is closed at the security group, so an `http://<ip>:8080` value fails that step) |
 
 The JWT secret isn't a GitHub secret. It lives in SSM Parameter Store (`/bondcalc/jwt-secret`, set from `terraform.tfvars` at apply time) and `/usr/local/bin/deploy.sh` on the instance reads it directly, so it never appears in a workflow log or an SSM command string.
 
