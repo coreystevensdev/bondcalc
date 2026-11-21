@@ -135,3 +135,27 @@ jobs:
           done
           echo "server never became healthy after deploy"
           exit 1
+
+      # After the smoke test, so a deploy that never came up keeps the image it
+      # would roll back to. This instance carries six services on 16GiB and every
+      # deploy left its predecessor on disk: it reached 99% on 2026-11-20 and a
+      # deploy died with "no space left on device". Two manual prunes reclaimed
+      # 10.8GB that day.
+      #
+      # bondcalc's own images are about 11MB, so this is mostly cleaning up after
+      # its neighbours, which is the point: whichever service deploys last pays.
+      # ECR holds every tag, so a rollback re-pulls rather than being blocked.
+      #
+      # continue-on-error because a deploy that worked should not go red over
+      # housekeeping.
+      - name: Reclaim superseded images on the instance
+        if: success()
+        continue-on-error: true
+        env:
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=['docker image prune -a -f || true']" \
+            --query 'Command.CommandId' --output text
