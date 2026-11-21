@@ -1,28 +1,84 @@
-# TLS for the services on this instance. Caddy runs with --network host, so it
-# binds 80/443 directly and dials each backend on 127.0.0.1. docker-proxy forwards
-# that in userland, so the backend sees the Docker bridge gateway rather than
-# loopback: internal/api/routes.go pins TrustedProxies to 127.0.0.1, ::1 and
-# 172.17.0.0/16 for that reason. Dropping the bridge range puts every proxied
-# request in one rate-limit bucket.
+# Live. Serves six demos on one instance, each reverse-proxied to a loopback
+# port, with the old sslip.io names kept as permanent redirects because they are
+# in the profile README, both repo homepages, and anywhere the links were already
+# shared.
 #
-# No ACME email, so Let's Encrypt cannot send expiry warnings. Caddy renews on its
-# own; adding `email you@example.com` in a global block turns the warnings on.
+# This is the config running on the box, pulled back after editing it there. The
+# version previously committed here described a staged, inactive move and warned
+# that applying it as-is would drop the vanity hostnames. That warning was
+# correct, and the file it warned about is now gone.
 #
-# This file is behind production. The running instance also serves
-# bondcalc.coreystevens.dev and 301s the sslip.io name to it, added on the box
-# after the hostname move and never committed here, so applying this file as-is
-# would drop the vanity hostname. Pull the live config before editing.
+# Caddy runs with --network host, binds 80 and 443, and dials each backend on
+# 127.0.0.1. docker-proxy forwards that in userland, so a backend sees the Docker
+# bridge gateway rather than loopback: internal/api/routes.go pins TrustedProxies
+# to 127.0.0.1, ::1 and 172.17.0.0/16 for that reason. Dropping the bridge range
+# puts every proxied request in one rate-limit bucket.
+#
+# No ACME email, so Let's Encrypt cannot send expiry warnings. Caddy renews on
+# its own; adding `email you@example.com` in a global block turns them on.
 
-# sslip.io resolves any IP embedded in the hostname, so this gets a real
-# certificate without waiting on a DNS record. Swapping it for a vanity subdomain
-# is this one line plus an A record; nothing else here changes.
-52-22-210-61.sslip.io {
+# Applied to every site block below. Five of these hosts served no security
+# headers at all, which undercut the posture these repos' own READMEs describe.
+#
+# No Content-Security-Policy here, deliberately. fairline's base.html and
+# queue.html carry inline <script> for the htmx key handling and taxcite's page
+# does too, so a blanket script-src 'self' would break them, and a policy with
+# 'unsafe-inline' would assert protection it does not provide. CSP belongs per
+# app, with nonces or the scripts moved into files.
+#
+# HSTS without includeSubDomains: these are sibling subdomains each terminated
+# here, tellsight.coreystevens.dev is served from a different instance, and
+# committing the parent domain from this box would reach a host this config does
+# not control.
+(secure) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Caddy advertises itself by default; nothing needs to know the server.
+		-Server
+	}
+}
+
+bondcalc.coreystevens.dev {
+	import secure
 	reverse_proxy 127.0.0.1:8080
 }
 
-# titlerate-java will listen on 127.0.0.1:8081. Left commented until it is actually
-# deployed, because a site block pointing at a dead port answers 502, and a public
-# URL that returns 502 is worse than one that does not exist yet.
-#
-# 52-22-210-61.sslip.io would collide with the block above, so titlerate needs its
-# own hostname: a subdomain once DNS exists, or a second instance address.
+titlerate.coreystevens.dev {
+	import secure
+	reverse_proxy 127.0.0.1:8081
+}
+
+fairline.coreystevens.dev {
+	import secure
+	reverse_proxy 127.0.0.1:8082
+}
+
+titletrace.coreystevens.dev {
+	import secure
+	reverse_proxy 127.0.0.1:8083
+}
+
+rebalancer.coreystevens.dev {
+	import secure
+	reverse_proxy 127.0.0.1:8084
+}
+
+taxcite.coreystevens.dev {
+	import secure
+	reverse_proxy 127.0.0.1:8085
+}
+
+52-22-210-61.sslip.io {
+	redir https://bondcalc.coreystevens.dev{uri} permanent
+}
+
+titlerate.52-22-210-61.sslip.io {
+	redir https://titlerate.coreystevens.dev{uri} permanent
+}
+
+fairline.52-22-210-61.sslip.io {
+	redir https://fairline.coreystevens.dev{uri} permanent
+}
