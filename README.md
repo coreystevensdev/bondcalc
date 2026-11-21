@@ -123,7 +123,7 @@ Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRO
 
 ## Known Limitations
 
-- YTM solver assumes non-negative periodic yield; deeply distressed bonds (price near zero) may not converge within 200 iterations.
+- The YTM solver gives up at the premium extreme, not the discount one. A 5% 10-year bond priced at 100,000 against a face of 1,000 returns `ErrDidNotConverge` rather than a wrong number. Deep discounts are fine: price 1 solves to 50.0 and price 0.01 to 5000. Negative yields are fine too and are returned without an error, so a bond priced above the sum of its remaining cash flows reports the negative yield that implies.
 - Semi-annual convention assumed for all duration math when `coupons_per_year = 2`; quarterly and monthly bonds use the same formula with the appropriate period length.
 - JWT is HS256 shared-secret: acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
 - Rate limiting covers the demo route only, and the window lives in process: a second replica would let one caller spend the limit twice over, and a restart forgets every window. The authenticated route is unlimited on the assumption a token holder is not anonymous.
