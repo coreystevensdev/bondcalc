@@ -1,3 +1,7 @@
+# Prepared as a deploy target in 8e0bab4 and never used. The deploy runs on
+# EC2: CI pushes to ECR and invokes /usr/local/bin/deploy.sh over SSM, gated
+# on a green CI. Nothing reads this file; kept as a record of the alternative.
+
 [build]
 builder = "dockerfile"
 
