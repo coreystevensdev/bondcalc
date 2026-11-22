@@ -31,11 +31,11 @@ type Bond struct {
 }
 
 type Result struct {
-	CurrentYield   float64 `json:"current_yield"`
-	YieldToMaturity float64 `json:"yield_to_maturity"`
+	CurrentYield     float64 `json:"current_yield"`
+	YieldToMaturity  float64 `json:"yield_to_maturity"`
 	MacaulayDuration float64 `json:"macaulay_duration_years"`
 	ModifiedDuration float64 `json:"modified_duration_years"`
-	CouponPayment  float64 `json:"coupon_payment"`
+	CouponPayment    float64 `json:"coupon_payment"`
 }
 
 func (b Bond) validate() error {
@@ -89,7 +89,7 @@ func (b Bond) YieldToMaturity() (float64, error) {
 		pv := coupon*(1-1/discount)/r + b.FaceValue/discount
 		// dPV/dr
 		dpv := -coupon*(1-1/discount)/(r*r) +
-			coupon*n/((r*discount*(1+r))) +
+			coupon*n/(r*discount*(1+r)) +
 			-b.FaceValue*n/(discount*(1+r))
 
 		if math.Abs(dpv) < derivativeEpsilon {
