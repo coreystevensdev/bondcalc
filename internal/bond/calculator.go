@@ -121,7 +121,12 @@ func (b Bond) MacaulayDuration() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return b.macaulayAt(ytm)
+}
 
+// macaulayAt takes the yield rather than solving for it, so a caller that
+// already has one does not pay for Newton-Raphson again.
+func (b Bond) macaulayAt(ytm float64) (float64, error) {
 	coupon := b.couponPerPeriod()
 	periodicYield := ytm / float64(b.CouponsPerYear)
 	n := b.PeriodsRemaining
@@ -147,17 +152,19 @@ func (b Bond) MacaulayDuration() (float64, error) {
 // ModifiedDuration is Macaulay duration divided by (1 + periodic yield).
 // It approximates the percentage price change for a 1% change in yield.
 func (b Bond) ModifiedDuration() (float64, error) {
-	mac, err := b.MacaulayDuration()
-	if err != nil {
-		return 0, err
-	}
 	ytm, err := b.YieldToMaturity()
 	if err != nil {
 		return 0, err
 	}
+	mac, err := b.macaulayAt(ytm)
+	if err != nil {
+		return 0, err
+	}
+	return b.modifiedFrom(mac, ytm), nil
+}
 
-	periodicYield := ytm / float64(b.CouponsPerYear)
-	return mac / (1 + periodicYield), nil
+func (b Bond) modifiedFrom(macaulay, ytm float64) float64 {
+	return macaulay / (1 + ytm/float64(b.CouponsPerYear))
 }
 
 func Calculate(b Bond) (Result, error) {
@@ -165,18 +172,18 @@ func Calculate(b Bond) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// One solve and one pass over the cash flows for all four figures. Going
+	// through the exported methods solves the yield four times and walks the
+	// flows twice, since each one re-derives what the last already had.
 	ytm, err := b.YieldToMaturity()
 	if err != nil {
 		return Result{}, err
 	}
-	mac, err := b.MacaulayDuration()
+	mac, err := b.macaulayAt(ytm)
 	if err != nil {
 		return Result{}, err
 	}
-	mod, err := b.ModifiedDuration()
-	if err != nil {
-		return Result{}, err
-	}
+	mod := b.modifiedFrom(mac, ytm)
 	return Result{
 		CurrentYield:     round(cy, 6),
 		YieldToMaturity:  round(ytm, 6),
