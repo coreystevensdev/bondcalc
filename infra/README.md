@@ -86,7 +86,7 @@ Set these in the repo settings (Settings > Secrets > Actions):
 
 The JWT secret isn't a GitHub secret. It lives in SSM Parameter Store (`/bondcalc/jwt-secret`, set from `terraform.tfvars` at apply time) and `/usr/local/bin/deploy.sh` on the instance reads it directly, so it never appears in a workflow log or an SSM command string.
 
-After that, every push to `main` triggers the deploy workflow automatically: it builds and pushes a new image, then uses SSM to invoke `deploy.sh` with the new image tag.
+After that the deploy workflow runs on a `workflow_run` of CI against `main`, gated on CI having succeeded, so a commit whose tests failed never reaches the box. A merge alone does not deploy; a green CI does. The workflow builds and pushes a new image, then uses SSM to invoke `deploy.sh` with the new tag. `workflow_dispatch` is still there with a `force` input for deploying a commit CI has not passed.
 
 ## Rollback
 

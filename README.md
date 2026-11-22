@@ -39,7 +39,7 @@ Two constraints that come with that arrangement. Caddy runs on the host network 
 | Language | Go 1.27 | Statically compiled binary, 8.2MB inside an 18.2MB distroless image, no runtime overhead |
 | HTTP | Gin 1.10 | Minimal middleware surface, well-understood performance profile |
 | Auth | golang-jwt/jwt v5 | HS256 shared-secret JWT, validated in a single middleware layer |
-| Build | Multi-stage Dockerfile | Builder stage compiles; distroless scratch stage ships only the binary |
+| Build | Multi-stage Dockerfile | Builder compiles; the runtime stage is `distroless/static-debian12`, not scratch, because the binary needs CA certs to reach ECR and SSM over TLS. It also brings tzdata and a nonroot user |
 | Infrastructure | AWS EC2 t3.small | Shares one box with five other demos behind the same Caddy; OIDC-based keyless deploys via GitHub Actions + SSM |
 | IaC | Terraform 1.9 | GitHub OIDC role, ECR lifecycle policy, S3 remote state |
 
@@ -124,7 +124,7 @@ Required GitHub secrets: `AWS_ROLE_ARN`, `ECR_API_REPO`, `EC2_INSTANCE_ID`, `PRO
 ## Known Limitations
 
 - The YTM solver gives up at the premium extreme, not the discount one. A 5% 10-year bond priced at 100,000 against a face of 1,000 returns `ErrDidNotConverge` rather than a wrong number. Deep discounts are fine: price 1 solves to 50.0 and price 0.01 to 5000. Negative yields are fine too and are returned without an error, so a bond priced above the sum of its remaining cash flows reports the negative yield that implies.
-- Semi-annual convention assumed for all duration math when `coupons_per_year = 2`; quarterly and monthly bonds use the same formula with the appropriate period length.
+- The API takes `periods_remaining` as a whole number of coupon periods and has no concept of a settlement date, so it can only price a bond standing exactly on a coupon date. There is no accrued interest, no clean-versus-dirty price, and no day-count convention: `30/360` and actual/actual appear nowhere in the code. A bond bought between coupons needs all three, so this is a scope limit rather than a rounding one.
 - JWT is HS256 shared-secret: acceptable for a single-service API, not suitable if multiple independent services need to verify tokens (use RS256 asymmetric keys in that case).
 - Rate limiting covers the demo route only, and the window lives in process: a second replica would let one caller spend the limit twice over, and a restart forgets every window. The authenticated route is unlimited on the assumption a token holder is not anonymous.
 - One instance, no redundancy and no auto-recovery: a single EC2 host serves this and five other demos, so an instance failure is downtime needing manual intervention, and a deploy is a brief gap. An ALB across two instances is the fix, and it is not worth the cost for demo traffic.
